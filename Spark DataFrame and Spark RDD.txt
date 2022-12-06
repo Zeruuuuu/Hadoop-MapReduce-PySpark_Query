@@ -1,0 +1,190 @@
+Question 2
+
+a. Find top-10 most popular official language, ranked by the number of countries where the language is official. Return the language and count in the descending order of the count.
+
+Code:
+country = spark.read.json('country.json')
+city = spark.read.json('city.json')
+cl = spark.read.json('countrylanguage.json')
+import pyspark.sql.functions as fc
+
+cl.filter("IsOfficial == 'T'").groupBy('Language').agg(fc.count('IsOfficial').alias('cnt')).orderBy('cnt', ascending = False).limit(10).show(truncate=False)
+
+Output:
+
++----------+---+                                                                
+|Language  |cnt|
++----------+---+
+|English   |44 |
+|Arabic    |22 |
+|Spanish   |20 |
+|French    |18 |
+|Portuguese|6  |
+|German    |6  |
+|Malay     |4  |
+|Italian   |4  |
+|Dutch     |4  |
+|Danish    |3  |
++----------+---+
+
+
+
+b. Find names of countries and their capital cities, for all countries in North America and having a GNP of at least 100,000. Output country and capital city names only.
+
+Code:
+
+country.join(city, country.Capital == city.ID).select(country.Name, city.Name)[(country.Continent == 'North America')&(country.GNP >= 100000)].show(truncate=False)
+
+Output:
+
++-------------+-----------------+
+|Name         |Name             |
++-------------+-----------------+
+|Canada       |Ottawa           |
+|Mexico       |Ciudad de MÃ©xico|
+|United States|Washington       |
++-------------+-----------------+
+
+
+c. Find names of countries in North America continent where English is an official language.
+
+Code:
+
+cl.join(country, cl.CountryCode == country.Code).select(country.Name)[(cl.Language == 'English') & (cl.IsOfficial == 'T') & (country.Continent == 'North America')].show(truncate=False)
+
+Output:
+
++--------------------------------+
+|Name                            |
++--------------------------------+
+|Anguilla                        |
+|Antigua and Barbuda             |
+|Belize                          |
+|Bermuda                         |
+|Barbados                        |
+|Canada                          |
+|Cayman Islands                  |
+|Saint Kitts and Nevis           |
+|Saint Lucia                     |
+|Montserrat                      |
+|Turks and Caicos Islands        |
+|United States                   |
+|Saint Vincent and the Grenadines|
+|Virgin Islands, British         |
+|Virgin Islands, U.S.            |
++--------------------------------+
+
+
+d. Find the maximum population over all cities in USA. 
+
+Code:
+
+city[city.CountryCode == 'USA'].agg(fc.max(city.Population).alias('max_population_over_USA_cities')).show(truncate=False)
+
+Output:
+
++------------------------------+
+|max_population_over_USA_cities|
++------------------------------+
+|8008278                       |
++------------------------------+
+
+
+e. Find country codes of the countries where both English and French are official languages. 
+
+Code:
+
+Eng = cl.select(cl.CountryCode)[(cl.Language == 'English') & (cl.IsOfficial == True)]
+Fren = cl.select(cl.CountryCode)[(cl.Language == 'French') & (cl.IsOfficial == True)]
+Eng_Fren = Eng.intersect(Fren)
+Eng_Fren.show(truncate=False)
+
+Output:
+
++-----------+
+|CountryCode|
++-----------+
+|VUT        |
+|SYC        |
+|CAN        |
++-----------+
+
+
+
+
+Question 3
+
+a. Find out how many countries have a GNP between 10,000 and 20,000 inclusive.
+
+Code:
+
+country = spark.read.json('country.json')
+city = spark.read.json('city.json')
+cl = spark.read.json('countrylanguage.json')
+country_rdd= country.rdd
+city_rdd = city.rdd
+cl_rdd = cl.rdd
+import pyspark.sql.functions as fc
+
+country_rdd.filter(lambda x: (x['GNP'] >= 10000) & (x['GNP'] <= 20000)).count()
+
+Output:
+
+20
+
+
+b. For each continent, find the maximum GNP of countries in the continent.
+
+Code:
+
+country_rdd.map(lambda x: (x['Continent'], x['GNP'])).reduceByKey(lambda a,b: max(a,b)).collect()
+
+Output:
+
+[('North America', 8510700.0), ('Asia', 3787042.0), ('Africa', 116729.0), ('Europe', 2133367.0), ('South America', 776739.0), ('Oceania', 351182.0), ('Antarctica', 0.0)]
+
+
+c. Find the first 20 countries and names of their capital cities, ordered by the names of countries, descending.
+
+Code:
+
+rdd1 = country_rdd.map(lambda x: (x['Capital'], x['Name'])).sortBy(lambda x: x[1], False)
+rdd2 = city_rdd.map(lambda x: (x['ID'], x['Name']))
+rdd1.join(rdd2).map(lambda x: x[1]).take(20)
+
+Output:
+
+[('Zimbabwe', 'Harare'), ('Zambia', 'Lusaka'), ('Yugoslavia', 'Beograd'), ('Yemen', 'Sanaa'), ('Wallis and Futuna', 'Mata-Utu'), ('Vietnam', 'Hanoi'), ('Uruguay', 'Montevideo'), ('United Kingdom', 'London'), ('Ukraine', 'Kyiv'), ('Tuvalu', 'Funafuti'), ('Turkey', 'Ankara'), ('Trinidad and Tobago', 'Port-of-Spain'), ('Tonga', 'NukuÂ´alofa'), ('Togo', 'LomÃ©'), ('Thailand', 'Bangkok'), ('Tanzania', 'Dodoma'), ('Syria', 'Damascus'), ('Switzerland', 'Bern'), ('Sweden', 'Stockholm'), ('Swaziland', 'Mbabane')]
+
+
+d. Find the maximum population of cities in USA.
+
+Code:
+
+city_rdd.filter(lambda x: x['CountryCode'] == 'USA').map(lambda x: x['Population']).reduce(lambda a,b: max(a,b))
+
+Output:
+
+8008278
+
+
+e. Find country codes of the countries where both English and French are official languages. 
+
+Code:
+
+rdd3 = cl_rdd.filter(lambda x: (x['IsOfficial'] == 'T') & (x['Language'] == 'English')).map(lambda x: x['CountryCode'])
+rdd4 = cl_rdd.filter(lambda x: (x['IsOfficial'] == 'T') & (x['Language'] == 'French')).map(lambda x: x['CountryCode'])
+rdd3.intersection(rdd4).collect()
+
+Output:
+
+['CAN', 'SYC', 'VUT']
+
+
+
+
+
+
+
+
+
